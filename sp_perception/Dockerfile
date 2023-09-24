@@ -2,7 +2,7 @@
 # it will install Opencv 4.5 from source, downloading from github
 # and then compiling with cuda suport
 
-FROM nvidia/cuda:11.2.2-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
 
 ENV DEBIAN_FRONTEND=noninteractive 
 
@@ -51,39 +51,63 @@ RUN apt-get install -y libprotobuf-dev protobuf-compiler \
 # Install wget
 RUN apt-get install -y wget
 
-# Download opencv and opencv_contrib 4.5.2
+# Download opencv and opencv_contrib 4.8.0
 RUN cd /opt && \
-    wget -O opencv.zip https://github.com/opencv/opencv/archive/refs/tags/4.5.2.zip && \
-    wget -O opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/refs/tags/4.5.2.zip && \
+    wget -O opencv.zip https://github.com/opencv/opencv/archive/refs/tags/4.8.0.zip && \
+    wget -O opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/refs/tags/4.8.0.zip && \
     unzip opencv.zip && \
     unzip opencv_contrib.zip && \
-    mv opencv-4.5.2 opencv && \
-    mv opencv_contrib-4.5.2 opencv_contrib && \
+    mv opencv-4.8.0 opencv && \
+    mv opencv_contrib-4.8.0 opencv_contrib && \
     rm opencv.zip && \
     rm opencv_contrib.zip
 
+# Create a virtual environment for opencv
+RUN pip3 install virtualenv && \
+    virtualenv -p python3 /opt/opencv-venv && \
+    sh /opt/opencv-venv/bin/activate && \
+    /opt/opencv-venv/bin/pip3 install numpy pycuda
+
 # Compile and install opencv
-RUN cd /opt/opencv && \
+RUN cd /opt && \
     mkdir build && \
     cd build && \
     cmake -D CMAKE_BUILD_TYPE=RELEASE \
         -D CMAKE_INSTALL_PREFIX=/usr/local \
+        -D WITH_TBB=ON \
+        -D ENABLE_FAST_MATH=1 \
+        -D CUDA_FAST_MATH=1 \
+        -D WITH_CUBLAS=1 \
         -D WITH_CUDA=ON \
-        -D CUDA_ARCH_BIN=7.5 \
-        -D CUDA_ARCH_PTX="" \
+        -D BUILD_opencv_cudacodec=OFF \
         -D WITH_CUDNN=ON \
         -D OPENCV_DNN_CUDA=ON \
-        -D ENABLE_FAST_MATH=ON \
-        -D CUDA_FAST_MATH=ON \
-        -D WITH_CUBLAS=ON \
+        -D CUDA_ARCH_BIN=8.6 \
+        -D WITH_V4L=ON \
+        -D WITH_QT=OFF \
         -D WITH_OPENGL=ON \
         -D WITH_GSTREAMER=ON \
         -D OPENCV_GENERATE_PKGCONFIG=ON \
         -D OPENCV_PC_FILE_NAME=opencv.pc \
+        -D OPENCV_ENABLE_NONFREE=ON \
         -D INSTALL_PYTHON_EXAMPLES=ON \
+        -D OPENCV_PYTHON3_INSTALL_PATH=/opt/opencv-venv/lib/python3.8/site-packages \
+        -D PYTHON_EXECUTABLE=/opt/opencv-venv/bin/python3 \
         -D INSTALL_C_EXAMPLES=ON \
         -D OPENCV_EXTRA_MODULES_PATH=/opt/opencv_contrib/modules \
-        -D BUILD_EXAMPLES=ON .. && \
-    make -j8 && \
+        -D BUILD_EXAMPLES=ON ../opencv && \
+    make -j32 && \
     make install && \
     ldconfig
+
+RUN apt-get install -y libcanberra-gtk-module libcanberra-gtk3-module
+
+# Install opencv zoo
+RUN cd /opt && \
+    git clone https://github.com/opencv/opencv_zoo.git && \
+    cd opencv_zoo && \
+    apt -y install git-lfs && \
+    git lfs install && \
+    git lfs pull
+
+RUN apt install -y nano
