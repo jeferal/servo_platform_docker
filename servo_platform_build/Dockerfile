@@ -111,3 +111,50 @@ RUN cd /opt && \
     git lfs pull
 
 RUN apt install -y nano
+
+RUN apt-get install -y lsb-core
+
+# Install ROS noetic
+RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+
+RUN apt-get install curl -y && \
+    curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add -
+
+RUN apt-get update && \
+    apt-get install ros-noetic-desktop-full -y
+
+SHELL ["/bin/bash", "-c"]
+# Source ROS
+RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
+
+# Create a catkin workspace
+RUN source /opt/ros/noetic/setup.bash && \
+    mkdir -p ~/base_ws/src && \
+    cd ~/base_ws/ && \
+    git clone https://github.com/jeferal/servo_platform.git src && \
+    catkin_make && \
+    # Add source to bashrc
+    echo "source ~/base_ws/devel/setup.bash" >> ~/.bashrc
+
+# Install terminator
+RUN apt-get install -y terminator
+
+# Install librealsense
+RUN apt-key adv --keyserver keyserver.ubuntu.com  --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE || sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-key && \
+    apt-get install software-properties-common -y && \
+    add-apt-repository "deb https://librealsense.intel.com/Debian/apt-repo $(lsb_release -cs) main" -u && \
+    apt-get install apt-utils -y && \
+    apt-get install librealsense2-utils librealsense2-dev -y
+
+# Install ROS wrapper
+RUN source /opt/ros/noetic/setup.bash && \
+    mkdir -p ~/base_deps_ws/src && \
+    apt-get install ros-noetic-ddynamic-reconfigure -y && \
+    cd ~/base_deps_ws/src && \
+    git clone https://github.com/IntelRealSense/realsense-ros.git && \
+    cd ~/base_deps_ws/src/realsense-ros/ && \
+    git checkout 2.3.2 && \
+    cd ~/base_deps_ws/ && \
+    catkin_make && \
+    # Add source to bashrc
+    echo "source ~/base_deps_ws/devel/setup.bash" >> ~/.bashrc
